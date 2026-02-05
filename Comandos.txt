@@ -1,0 +1,90 @@
+CONFIGURACIÓN DE PARÁMETROS DE RED
+
+MÉTODO 1: nmcli
+ip a
+nmcli connection show
+nmcli connection modify "Wired connection 1" ipv4.method auto
+nmcli connection down "Wired connection 1"
+nmcli connection up "Wired connection 1"
+nmcli connection modify "Wired connection 1" ipv4.dns "8.8.8.8 8.8.4.4"
+nmcli connection up "Wired connection 1"
+nmcli connection modify "Wired connection 1" ipv4.method manual
+nmcli connection modify "Wired connection 1" ipv4.addresses 192.168.1.100/24
+nmcli connection modify "Wired connection 1" ipv4.gateway 192.168.1.1
+nmcli connection modify "Wired connection 1" ipv4.dns "8.8.8.8 8.8.4.4"
+nmcli connection down "Wired connection 1"
+nmcli connection up "Wired connection 1"
+
+MÉTODO 2: /etc/network/interfaces
+sudo nano /etc/network/interfaces
+sudo systemctl restart networking
+sudo ifdown eth0
+sudo ifup eth0
+
+MÉTODO 3: comando ip
+sudo ip addr add 192.168.1.100/24 dev eth0
+sudo ip route add default via 192.168.1.1
+sudo ip link set eth0 up
+ip addr show eth0
+ip route show
+
+MÉTODO 4: ifconfig
+sudo ifconfig eth0 192.168.1.100 netmask 255.255.255.0
+sudo route add default gw 192.168.1.1
+sudo ifconfig eth0 up
+ifconfig eth0
+route -n
+
+MÉTODO 5: DNS
+sudo nano /etc/resolv.conf
+sudo nano /etc/resolvconf/resolv.conf.d/head
+sudo resolvconf -u
+
+Verificación
+ip a
+ip route show
+cat /etc/resolv.conf
+ping -c 4 8.8.8.8
+ping -c 4 google.com
+systemctl status NetworkManager
+
+GESTIÓN DE USUARIOS Y GRUPOS
+
+sudo adduser tunombre
+sudo usermod -aG sudo tunombre
+sudo visudo
+groups tunombre
+id tunombre
+sudo groupadd guest
+sudo adduser invitado
+sudo usermod -aG guest invitado
+groups invitado
+getent group guest
+sudo userdel invitado
+sudo userdel -r invitado
+sudo groupdel guest
+getent passwd invitado
+getent group guest
+
+GESTIÓN DE PERMISOS DE ARCHIVOS
+
+mkdir materia
+cd materia
+touch estudiante.txt
+vi estudiante.txt
+cat estudiante.txt
+chmod 700 estudiante.txt
+ls -l estudiante.txt
+chmod u=rwx,g=,o= estudiante.txt
+chmod 070 estudiante.txt
+chmod u=,g=rwx,o= estudiante.txt
+chmod 770 estudiante.txt
+cd ..
+mkdir materia2
+cp materia/estudiante.txt materia2/
+ls -l materia2/
+cat materia2/estudiante.txt
+rm -r materia
+rm -ri materia
+rm -rf materia
+ls -l
