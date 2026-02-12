@@ -1,0 +1,67 @@
+================================================================================
+PRÁCTICA 1: GESTIÓN DE PAQUETES Y BASHTOP
+================================================================================
+
+sudo apt update
+sudo apt upgrade -y
+cat /etc/apt/sources.list
+ls /etc/apt/sources.list.d/
+apt-cache search bashtop
+apt-cache policy bashtop
+sudo apt install git -y
+git clone https://github.com/aristocratos/bashtop.git
+cd bashtop
+sudo make install
+cd ~
+which bashtop
+bashtop --version
+bashtop
+cd bashtop
+sudo make uninstall
+cd ~
+rm -rf bashtop
+rm -rf ~/.config/bashtop
+sudo apt autoremove -y
+sudo apt autoclean
+sudo apt clean
+which bashtop
+
+
+================================================================================
+PRÁCTICA 2: TAREAS PROGRAMADAS (CRON Y AT)
+================================================================================
+
+crontab -e
+crontab -l
+sudo apt install at -y
+sudo systemctl start atd
+sudo systemctl enable atd
+ls /tmp
+echo "rm -rf /tmp/*" | at now + 1 minute
+atq
+sleep 65
+ls /tmp
+
+
+================================================================================
+PRÁCTICA 3: GESTIÓN DE DISCOS Y PARTICIONES
+================================================================================
+
+lsblk
+sudo fdisk -l
+sudo mkfs.ext4 /dev/sdb
+mkdir ~/Desktop/disco
+sudo mount /dev/sdb ~/Desktop/disco
+lsblk
+cd ~/Desktop/disco
+echo "Este es el archivo de Adrian Alcantara" | sudo tee AdrianAlcantara.txt
+ls -l
+cat AdrianAlcantara.txt
+cd
+sudo umount ~/Desktop/disco
+lsblk
+sudo mount /dev/sdb /mnt
+lsblk
+cd /mnt
+ls -l
+cat AdrianAlcantara.txt
