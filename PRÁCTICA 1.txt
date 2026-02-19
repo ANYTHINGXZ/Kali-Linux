@@ -1,0 +1,60 @@
+PRÁCTICA 1
+
+Configurar GRUB timeout a 20 segundos
+
+sudo nano /etc/default/grub
+# Editar la línea GRUB_TIMEOUT=20 (guardar y salir)
+sudo update-grub
+
+
+
+
+
+Método de recuperación de contraseña root (olvidada)
+
+mount -o remount,rw /
+passwd root
+# Introducir nueva contraseña
+sync
+exec /sbin/init
+
+
+
+
+
+PRÁCTICA 2
+
+Script de backup de /home/tu_usuario con fecha y hora
+
+nano backup.sh
+#!/bin/bash
+tar -czvf /home/$(whoami)/backup_$(date +%d-%m-%Y:%H:%M).tar.gz /home/$(whoami)
+
+chmod +x backup.sh
+./backup.sh
+
+nano ifconfig_script.sh
+
+#!/bin/bash
+read -p "Introduce el nombre del archivo: " nombre
+ifconfig > /home/$(whoami)/Desktop/"$nombre"
+
+chmod +x ifconfig_script.sh
+./ifconfig_script.sh
+
+
+
+
+
+PRÁCTICA 3
+Configurar VM en modo Bridge (desde el hipervisor, sin comando)
+Validar conectividad con ping desde Windows
+
+
+ip addr show
+sudo apt update && sudo apt install openssh-server -y
+sudo systemctl enable ssh
+sudo systemctl start ssh
+sudo systemctl status ssh
+ssh-keygen -t rsa -b 4096
+ssh-copy-id
