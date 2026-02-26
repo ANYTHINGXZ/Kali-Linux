@@ -1,0 +1,60 @@
+================================================================
+PRACTICA 1 - SERVIDOR HTTP APACHE2
+================================================================
+
+sudo apt update
+sudo apt install apache2 -y
+sudo systemctl start apache2
+sudo systemctl enable apache2
+sudo systemctl status apache2
+sudo mkdir -p /var/www/holamundo
+sudo nano /var/www/holamundo/index.html
+sudo nano /etc/apache2/sites-available/holamundo.conf
+sudo a2ensite holamundo.conf
+sudo systemctl reload apache2
+cd /etc/apache2
+sudo nano ports.conf
+sudo mkdir -p /var/www/personal
+sudo nano /var/www/personal/index.html
+sudo nano /etc/apache2/sites-available/personal.conf
+sudo a2ensite personal.conf
+sudo systemctl restart apache2
+sudo netstat -tlnp | grep apache
+sudo apache2ctl -S
+
+================================================================
+PRACTICA 2 - SERVIDOR DE CORREOS POSTFIX
+================================================================
+
+sudo apt update
+sudo apt install postfix -y
+sudo systemctl start postfix
+sudo systemctl enable postfix
+sudo systemctl status postfix
+sudo nano /etc/postfix/main.cf
+sudo systemctl restart postfix
+sudo apt install mailutils -y
+echo "Angel Manuel Ramirez Laurencio - 2025-2185" | mail -s "MambruSeFueALaGuerra" os3conadrian@gmail.com
+sudo tail -f /var/log/mail.log
+
+================================================================
+PRACTICA 3 - SERVIDOR DE IMPRESION CUPS
+================================================================
+
+sudo apt update
+sudo apt install cups -y
+sudo systemctl start cups
+sudo systemctl enable cups
+sudo systemctl status cups
+sudo nano /etc/cups/cupsd.conf
+sudo systemctl restart cups
+sudo apt install printer-driver-cups-pdf -y
+sudo lpadmin -p PDF -E -v cups-pdf:/ -m lsb/usr/cups-pdf/CUPS-PDF_opt.ppd
+sudo lpoptions -d PDF
+lpstat -p
+ip a
+sudo netstat -tlnp | grep 631
+echo "Prueba de impresion" | lp -d PDF
+ls /root/PDF/
+
+================================================================
