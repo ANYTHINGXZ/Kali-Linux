@@ -1,0 +1,200 @@
+================================================================
+PRACTICA 1 - SINCRONIZACION CON RSYNC
+================================================================
+# Servidor primario: 10.0.0.215
+# Servidor secundario: 10.0.0.174
+
+# En el servidor primario
+mkdir -p /root/sincronizacion
+cd /root/sincronizacion
+touch archivo{1..100}.txt
+ls | wc -l
+
+apt update
+apt install rsync -y
+ssh root@10.0.0.174 "apt update; apt install rsync -y"
+
+ssh-keygen -t rsa -N "" -f /root/.ssh/id_rsa
+ssh-copy-id root@10.0.0.174
+ssh root@10.0.0.174 "hostname"
+
+rsync -avz /root/sincronizacion/ root@10.0.0.174:/root/sincronizacion/
+ssh root@10.0.0.174 "ls /root/sincronizacion/ | wc -l"
+
+cat > /root/sync_script.sh << 'EOF'
+#!/bin/bash
+rsync -avz /root/sincronizacion/ root@10.0.0.174:/root/sincronizacion/
+EOF
+chmod +x /root/sync_script.sh
+/root/sync_script.sh
+
+crontab -l > /tmp/mycron 2>/dev/null || true
+echo "* * * * * /root/sync_script.sh >> /root/sync.log 2>&1" >> /tmp/mycron
+crontab /tmp/mycron
+rm /tmp/mycron
+crontab -l
+
+touch /root/sincronizacion/archivo_prueba.txt
+# Esperar 1 minuto
+ssh root@10.0.0.174 "ls /root/sincronizacion/ | grep archivo_prueba"
+tail -f /root/sync.log
+
+================================================================
+PRACTICA 2 - CLUSTER DE ALTA DISPONIBILIDAD CON HEARTBEAT
+================================================================
+# Nodo1: 10.0.0.215 (nombre: nodo1)
+# Nodo2: 10.0.0.174 (nombre: nodo2)
+# IP flotante: 10.0.0.100
+
+# En ambos servidores
+apt update && apt upgrade -y
+
+# En nodo1
+hostnamectl set-hostname nodo1
+echo "10.0.0.215 nodo1" >> /etc/hosts
+echo "10.0.0.174 nodo2" >> /etc/hosts
+
+# En nodo2
+ssh root@10.0.0.174 "hostnamectl set-hostname nodo2"
+ssh root@10.0.0.174 'echo "10.0.0.215 nodo1" >> /etc/hosts; echo "10.0.0.174 nodo2" >> /etc/hosts'
+
+# Verificar conectividad
+ping -c 4 nodo2
+ssh root@10.0.0.174 "ping -c 4 nodo1"
+
+# Instalar heartbeat en ambos
+apt install heartbeat -y
+ssh root@10.0.0.174 "apt install heartbeat -y"
+
+# Configurar en nodo1
+cat > /etc/ha.d/ha.cf << 'EOF'
+bcast eth0
+node nodo1
+node nodo2
+deadtime 30
+keepalive 2
+udpport 694
+logfile /var/log/heartbeat.log
+EOF
+
+cat > /etc/ha.d/haresources << 'EOF'
+nodo1 IPaddr::10.0.0.100/24/eth0
+EOF
+
+cat > /etc/ha.d/authkeys << 'EOF'
+auth 1
+1 sha1 MiClaveSecreta123
+EOF
+chmod 600 /etc/ha.d/authkeys
+
+# Copiar a nodo2
+scp /etc/ha.d/ha.cf root@10.0.0.174:/etc/ha.d/
+scp /etc/ha.d/haresources root@10.0.0.174:/etc/ha.d/
+scp /etc/ha.d/authkeys root@10.0.0.174:/etc/ha.d/
+
+# Iniciar heartbeat en ambos
+systemctl start heartbeat
+systemctl enable heartbeat
+ssh root@10.0.0.174 "systemctl start heartbeat; systemctl enable heartbeat"
+
+# Verificar IP flotante
+ip addr show eth0 | grep 10.0.0.100
+ssh root@10.0.0.174 "ip addr show eth0 | grep 10.0.0.100"
+ping -c 4 10.0.0.100
+
+# Pruebas (en una terminal hacer ping continuo)
+# ping 10.0.0.100
+# En otra terminal, en nodo1:
+systemctl stop heartbeat
+# Observar migración
+ssh root@10.0.0.174 "ip addr show eth0 | grep 10.0.0.100"
+# Restaurar
+systemctl start heartbeat
+# Ver logs
+tail -f /var/log/heartbeat.log
+
+================================================================
+PRACTICA 3 - CLUSTER HTTP CON KEEPALIVED
+================================================================
+# Nodo1: 10.0.0.215
+# Nodo2: 10.0.0.174
+# IP flotante: 10.0.0.200
+
+# Instalar nginx en ambos
+apt update; apt install nginx -y
+ssh root@10.0.0.174 "apt update; apt install nginx -y"
+
+# Páginas personalizadas
+echo "<h1>Servidor Web 1 - 10.0.0.215</h1>" > /var/www/html/index.html
+ssh root@10.0.0.174 'echo "<h1>Servidor Web 2 - 10.0.0.174</h1>" > /var/www/html/index.html'
+
+# Verificar
+systemctl status nginx
+curl localhost
+ssh root@10.0.0.174 "systemctl status nginx; curl localhost"
+
+# Instalar keepalived
+apt install keepalived -y
+ssh root@10.0.0.174 "apt install keepalived -y"
+
+# Configurar en nodo1 (MASTER)
+cat > /etc/keepalived/keepalived.conf << 'EOF'
+global_defs {
+   router_id LVS_1
+}
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    virtual_router_id 51
+    priority 101
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1234
+    }
+    virtual_ipaddress {
+        10.0.0.200/24 dev eth0
+    }
+}
+EOF
+
+# Configurar en nodo2 (BACKUP)
+ssh root@10.0.0.174 "cat > /etc/keepalived/keepalived.conf << 'EOF'
+global_defs {
+   router_id LVS_2
+}
+vrrp_instance VI_1 {
+    state BACKUP
+    interface eth0
+    virtual_router_id 51
+    priority 100
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1234
+    }
+    virtual_ipaddress {
+        10.0.0.200/24 dev eth0
+    }
+}
+EOF"
+
+# Iniciar keepalived
+systemctl enable keepalived; systemctl start keepalived
+ssh root@10.0.0.174 "systemctl enable keepalived; systemctl start keepalived"
+
+# Verificar IP flotante
+ip addr show eth0 | grep 10.0.0.200
+curl http://10.0.0.200
+curl http://10.0.0.215
+curl http://10.0.0.174
+
+# Pruebas (en una terminal)
+while true; do curl -s http://10.0.0.200; sleep 1; done
+# En otra terminal, en nodo1:
+systemctl stop keepalived
+# Observar cambio
+# Restaurar
+systemctl start keepalived
+# Ver logs
+tail -f /var/log/syslog | grep Keepalived
