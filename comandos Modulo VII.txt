@@ -1,0 +1,166 @@
+# ============================================================
+# PRACTICA 1 - COMPARTIR ARCHIVOS CON NFS
+# VM Server: 10.0.0.215 | VM Cliente: 10.0.0.174
+# ============================================================
+
+# --- EN EL SERVIDOR ---
+
+sudo apt update
+sudo apt install nfs-kernel-server -y
+
+sudo systemctl status nfs-kernel-server
+
+sudo mkdir -p /OS3
+
+for i in $(seq 1 100); do sudo touch /OS3/Adrian${i}.txt; done
+
+ls /OS3
+
+sudo chown -R nobody:nogroup /OS3
+sudo chmod 777 /OS3
+
+echo "/OS3    10.0.0.0/24(rw,sync,no_subtree_check,no_root_squash)" | sudo tee -a /etc/exports
+
+cat /etc/exports
+
+sudo exportfs -a
+sudo systemctl restart nfs-kernel-server
+sudo exportfs -v
+
+sudo ufw allow from 10.0.0.0/24 to any port nfs
+sudo ufw allow 2049
+sudo ufw reload
+
+sudo ss -tlnp | grep 2049
+
+# --- EN EL CLIENTE ---
+
+sudo apt update
+sudo apt install nfs-common -y
+
+sudo mkdir -p /mnt/OS3
+sudo mount 10.0.0.215:/OS3 /mnt/OS3
+
+ls /mnt/OS3
+
+echo "10.0.0.215:/OS3    /mnt/OS3    nfs    defaults    0    0" | sudo tee -a /etc/fstab
+
+cat /etc/fstab
+
+sudo reboot
+
+# Despues del reinicio:
+ls /mnt/OS3
+
+
+# ============================================================
+# PRACTICA 2 - FILESERVER CON SAMBA
+# VM Server: 10.0.0.215
+# ============================================================
+
+# --- EN EL SERVIDOR ---
+
+sudo apt update
+sudo apt install samba -y
+
+sudo systemctl status smbd
+
+sudo groupadd sambagroup
+sudo useradd -m -g sambagroup sambausr
+sudo mkdir -p /samba/compartida
+sudo chown -R root:sambagroup /samba/compartida
+sudo chmod 777 /samba/compartida
+
+sudo smbpasswd -a sambausr
+sudo smbpasswd -e sambausr
+
+# Agregar al final de /etc/samba/smb.conf:
+# [compartida]
+#    path = /samba/compartida
+#    valid users = sambausr
+#    read only = no
+#    browsable = yes
+#    create mask = 0770
+#    directory mask = 0770
+sudo nano /etc/samba/smb.conf
+
+testparm
+
+sudo systemctl restart smbd
+
+for i in $(seq 1 100); do sudo touch /samba/compartida/adrian${i}; done
+
+ls /samba/compartida
+
+sudo chmod -R 777 /samba/compartida
+
+sudo ufw allow samba
+sudo ufw reload
+
+# --- EN WINDOWS ---
+# 1. Abrir Explorador de archivos
+# 2. Clic derecho en "Este equipo" -> Conectar a unidad de red
+# 3. Ruta: \\10.0.0.215\compartida
+# 4. Marcar "Conectar con credenciales diferentes"
+# 5. Usuario: sambausr | Contrasena: 20252185
+# 6. Abrir adrian99, agregar: el zumzum de la carabela
+# 7. Guardar con CTRL+S
+
+# --- DE VUELTA EN EL SERVIDOR ---
+
+cat /samba/compartida/adrian99
+
+
+# ============================================================
+# PRACTICA 3 - CONTROLADOR DE DOMINIO CON SAMBA4
+# VM Server: 10.0.0.215
+# ============================================================
+
+# --- EN EL SERVIDOR ---
+
+sudo apt update
+sudo apt install samba krb5-config krb5-user winbind -y
+# Cuando pregunte el reino Kerberos escribir: SO3.INET
+
+sudo useradd -m lanegracubana
+sudo passwd lanegracubana
+# Contrasena: 20252185
+
+sudo systemctl stop samba-ad-dc smbd nmbd winbind
+sudo systemctl disable samba-ad-dc smbd nmbd winbind
+
+sudo mv /etc/samba/smb.conf /etc/samba/smb.conf.bak
+
+sudo samba-tool domain provision --use-rfc2307 --interactive
+# Realm: SO3.INET
+# Domain: SO3
+# Server Role: dc
+# DNS backend: SAMBA_INTERNAL
+# DNS forwarder IP: 8.8.8.8
+# Administrator password: 20252185
+
+sudo cp /var/lib/samba/private/krb5.conf /etc/krb5.conf
+
+sudo systemctl unmask samba-ad-dc
+sudo systemctl enable samba-ad-dc
+sudo systemctl start samba-ad-dc
+
+sudo systemctl status samba-ad-dc
+
+sudo samba-tool user create lanegracubana 20252185
+
+sudo samba-tool user list
+
+sudo samba-tool domain level show
+
+host -t A SO3.inet 127.0.0.1
+
+# --- EN WINDOWS ---
+# 1. Panel de Control -> Redes -> Adaptador -> Propiedades -> IPv4
+#    DNS Preferido: 10.0.0.215
+# 2. Clic derecho "Este equipo" -> Propiedades -> Cambiar configuracion -> Cambiar
+#    Seleccionar Dominio: SO3.inet
+#    Usuario: Administrator | Contrasena: 20252185
+# 3. Reiniciar Windows cuando lo solicite
+# 4. En la pantalla de inicio seleccionar "Otro usuario":
+#    Usuario: SO3\lanegracubana | Contrasena: 20252185
