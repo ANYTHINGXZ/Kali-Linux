@@ -1,0 +1,140 @@
+================================================================
+COMANDOS - PRACTICAS DE DOCKER
+Angel Manuel Ramirez Laurencio | 2025-2185
+================================================================
+
+
+----------------------------------------------------------------
+PRACTICA 1: INSTALACION Y CONFIGURACION DE DOCKER
+----------------------------------------------------------------
+
+sudo apt update
+sudo apt install docker.io -y
+
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo systemctl status docker
+
+docker --version
+
+sudo usermod -aG docker $USER
+newgrp docker
+
+docker pull nginx
+
+docker images
+
+mkdir -p /home/website
+nano /home/website/index.html
+
+docker run -d --name nginx-container -p 8888:80 -v /home/website:/usr/share/nginx/html nginx
+
+docker ps
+
+docker logs nginx-container
+
+
+----------------------------------------------------------------
+PRACTICA 2: INSTALACION DE PORTAINER
+----------------------------------------------------------------
+
+docker pull portainer/portainer-ce:latest
+
+docker images | grep portainer
+
+docker run -d --name portainer -p 9443:9443 -p 8000:8000 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+
+docker ps | grep portainer
+
+docker stop nginx-container
+
+docker start nginx-container
+
+
+----------------------------------------------------------------
+PRACTICA 3: DESPLIEGUE DE WORDPRESS CON DOCKER COMPOSE
+----------------------------------------------------------------
+
+sudo apt install docker-compose -y
+
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+
+sudo chmod +x /usr/local/bin/docker-compose
+
+docker-compose --version
+
+mkdir -p ~/wordpress-docker
+cd ~/wordpress-docker
+
+cat > ~/wordpress-docker/docker-compose.yml << 'EOF'
+services:
+
+  db:
+    image: mysql:8.0
+    container_name: wordpress_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wpuser
+      MYSQL_PASSWORD: wppassword
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - wordpress_network
+
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress_app
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "8081:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppassword
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - wordpress_network
+
+volumes:
+  db_data:
+  wordpress_data:
+
+networks:
+  wordpress_network:
+    driver: bridge
+EOF
+
+cat ~/wordpress-docker/docker-compose.yml
+
+docker-compose down -v
+docker rm -f wordpress_app wordpress_db 2>/dev/null
+
+docker-compose up -d
+
+sleep 30
+
+docker ps
+
+docker logs wordpress_db | tail -5
+
+docker-compose ps
+
+docker-compose logs -f
+
+docker-compose stop
+
+docker-compose start
+
+docker-compose restart
+
+docker-compose down
+
+docker-compose down -v
+
+================================================================
