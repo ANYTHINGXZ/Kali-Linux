@@ -1,0 +1,204 @@
+================================================================
+COMANDOS - PRACTICAS DE ANSIBLE
+Angel Manuel Ramirez Laurencio | 2025-2185
+================================================================
+
+
+----------------------------------------------------------------
+PRACTICA 1: INSTALACION DE WEBMIN
+----------------------------------------------------------------
+
+apt update && apt upgrade -y
+
+apt install wget curl gnupg2 -y
+
+curl -o setup-repos.sh https://raw.githubusercontent.com/webmin/webmin/master/setup-repos.sh
+sh setup-repos.sh
+
+apt install webmin -y
+
+systemctl status webmin
+systemctl start webmin
+systemctl enable webmin
+
+ufw allow 10000
+ufw reload
+
+# Acceder desde el navegador:
+# https://IP-DEL-SERVIDOR:10000
+
+
+----------------------------------------------------------------
+PRACTICA 2: DESPLIEGUE DE VM CON TERRAFORM EN DIGITAL OCEAN
+----------------------------------------------------------------
+
+wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+apt update
+apt install terraform -y
+
+terraform -v
+
+ssh-keygen -t rsa -b 4096
+cat ~/.ssh/id_rsa.pub
+
+mkdir ~/practica-terraform
+cd ~/practica-terraform
+
+# Obtener ID de llave SSH en Digital Ocean:
+curl -X GET \
+  -H "Authorization: Bearer TU_TOKEN_AQUI" \
+  "https://api.digitalocean.com/v2/account/keys"
+
+# Contenido del main.tf:
+cat > main.tf << 'EOF'
+terraform {
+  required_providers {
+    digitalocean = {
+      source  = "digitalocean/digitalocean"
+      version = "~> 2.0"
+    }
+  }
+}
+
+provider "digitalocean" {
+  token = "TU_TOKEN_AQUI"
+}
+
+resource "digitalocean_droplet" "OS3vm" {
+  image    = "ubuntu-22-04-x64"
+  name     = "OS3vm"
+  region   = "nyc1"
+  size     = "s-1vcpu-1gb"
+  ssh_keys = [ID_LLAVE_SSH]
+}
+EOF
+
+terraform init
+
+terraform plan
+
+terraform apply
+
+# Validar conexion SSH:
+ssh root@IP-DEL-DROPLET
+
+uname -a
+hostname
+
+
+----------------------------------------------------------------
+PRACTICA 3: INSTALACION DE ANSIBLE
+----------------------------------------------------------------
+
+# --- EN VM SERVER (ANSIBLE CONTROLLER) ---
+
+apt update
+apt install ansible -y
+
+ansible --version
+
+ssh-keygen -t rsa -b 4096
+
+ssh-copy-id ansible@IP-VM-LINUX
+
+ssh ansible@IP-VM-LINUX
+
+pip3 install pywinrm
+
+nano /etc/ansible/hosts
+
+# Contenido del inventario /etc/ansible/hosts:
+# [linux]
+# ansible1 ansible_host=IP-VM-LINUX ansible_user=ansible
+#
+# [win]
+# ansible2 ansible_host=IP-VM-WINDOWS ansible_user=ansible ansible_password=MiPassword123 ansible_connection=winrm ansible_winrm_transport=basic ansible_port=5985
+
+ansible linux -m ping
+
+ansible win -m win_ping
+
+
+# --- EN ANSIBLE1 (VM LINUX - DIGITAL OCEAN) ---
+
+ssh root@IP-VM-LINUX
+
+useradd -m -s /bin/bash ansible
+usermod -aG sudo ansible
+echo "ansible ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+id ansible
+
+
+# --- EN ANSIBLE2 (VM WINDOWS) ---
+
+# En PowerShell como Administrador:
+net user ansible MiPassword123 /add
+net localgroup Administrators ansible /add
+
+winrm quickconfig -y
+winrm set winrm/config/service/Auth '@{Basic="true"}'
+winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+
+
+----------------------------------------------------------------
+PRACTICA 4: COMANDOS AD-HOC
+----------------------------------------------------------------
+
+# Copiar archivo txt del escritorio de ansible2 a carpeta Documentos (win_copy):
+ansible win -m win_copy -a "src=/ruta/archivo.txt dest=C:\\Users\\ansible\\Documents\\archivo.txt"
+
+# Reiniciar la VM ansible1 (reboot):
+ansible linux -m reboot
+
+
+----------------------------------------------------------------
+PRACTICA 5: PLAYBOOKS
+----------------------------------------------------------------
+
+# --- PLAYBOOK PARA INSTALAR NOTEPAD++ EN WINDOWS (ansible2) ---
+
+cat > ~/instalar_notepad.yml << 'EOF'
+---
+- name: Instalar Notepad++ en Windows
+  hosts: win
+  tasks:
+    - name: Instalar Notepad++
+      win_chocolatey:
+        name: notepadplusplus
+        state: present
+EOF
+
+ansible-playbook ~/instalar_notepad.yml
+
+
+# --- PLAYBOOK PARA INSTALAR Y ARRANCAR NGINX EN LINUX (ansible1) ---
+
+cat > ~/instalar_nginx.yml << 'EOF'
+---
+- name: Instalar y arrancar NGINX en Linux
+  hosts: linux
+  become: yes
+  tasks:
+    - name: Instalar NGINX
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Iniciar y habilitar NGINX
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+EOF
+
+ansible-playbook ~/instalar_nginx.yml
+
+# Verificar que NGINX esta corriendo en ansible1:
+ansible linux -m command -a "systemctl status nginx"
+
+================================================================
